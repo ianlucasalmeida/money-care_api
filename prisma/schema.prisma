@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  name         String
+  password     String
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+  wallets      Wallet[]
+  categories   Category[]
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String
+  icon         String
+  type         String // "income" or "expense"
+  user         User?         @relation(fields: [userId], references: [id])
+  userId       Int?
+  transactions Transaction[]
+}
+
+// DEFINIÇÃO DO MODELO TRANSACTION QUE ESTAVA FALTANDO
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  description String
+  amount      Float
+  type        String // "income" or "expense"
+  date        DateTime
+  notes       String?
+  user        User     @relation(fields: [userId], references: [id])
+  userId      Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  categoryId  Int
+  wallet      Wallet?  @relation(fields: [walletId], references: [id])
+  walletId    Int?
+}
+
+// DEFINIÇÃO DO MODELO WALLET QUE ESTAVA FALTANDO
+model Wallet {
+  id            Int           @id @default(autoincrement())
+  name          String
+  goalAmount    Float
+  currentAmount Float         @default(0)
+  user          User          @relation(fields: [userId], references: [id])
+  userId        Int
+  transactions  Transaction[]
+}
