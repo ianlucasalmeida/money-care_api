@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
+import { ScrapedItem } from '../../src/types/index';
 
 @Injectable()
 export class ReceiptsService {
@@ -12,51 +13,53 @@ export class ReceiptsService {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
       });
       const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle2' });
 
+      // MUDANÇA: Aumentamos o tempo limite padrão de 30 para 60 segundos
+      await page.setDefaultNavigationTimeout(60000);
+
+      // MUDANÇA: Usamos Promise.all para esperar por dois eventos, 
+      // o que torna a espera mais confiável.
+      await Promise.all([
+        page.goto(url),
+        page.waitForNavigation({ waitUntil: 'networkidle0' }),
+      ]);
+      
+      // MUDANÇA: Adicionamos uma espera explícita por um seletor chave.
+      // O scraper só continuará depois que a tabela de itens (#tabResult) estiver visível.
+      // Substitua '#tabResult' por um seletor que sempre aparece na página da sua nota fiscal.
+      await page.waitForSelector('#tabResult', { timeout: 10000 });
+      
       const html = await page.content();
       const $ = cheerio.load(html);
 
-      // --- TENTATIVA DE EXTRAÇÃO COM SELETORES MAIS COMUNS ---
-      // Tente encontrar o nome do estabelecimento
+      // O resto da lógica de extração permanece a mesma...
       const establishmentName = $('div.txtTopo').first().text().trim() || $('td.NFCCabEmiNome').first().text().trim();
-      
-      // Tente encontrar o valor total
-      const totalAmountText = $('#NFCDetalhe_pnlValoresTotais span.totalNumb.txtMax').text().trim() || $('span.totalNumb').text().trim();
-      const totalAmount = parseFloat(totalAmountText.replace('R$', '').replace(',', '.').trim());
+      let totalAmount = 0;
+      $('div#totalNota').find('span.totalNumb').each((_i, el) => {
+          const label = $(el).prev('label').text().trim();
+          if (label.includes('Valor a pagar')) {
+              totalAmount = parseFloat($(el).text().trim().replace(',', '.'));
+          }
+      });
 
-      // Adicionamos logs para debug
-      console.log('Estabelecimento Encontrado:', establishmentName);
-      console.log('Texto do Valor Total Encontrado:', totalAmountText);
-      console.log('Valor Total Convertido:', totalAmount);
-      
-      const items: { description: string; total: number }[] = [];
-      $('#tabResult tr, table.NFCCabTbl tr').each((_i, el) => {
-        const description = $(el).find('span.txtTit, td.NFCTit').text().trim();
-        const totalItemPriceText = $(el).find('span.valor, td.NFCVal').text().trim();
-        const totalItemPrice = parseFloat(totalItemPriceText.replace('R$', '').replace(',', '.').trim());
-        
-        if(description && !isNaN(totalItemPrice)){
-            items.push({ description, total: totalItemPrice });
-            console.log(`Item Encontrado: ${description} - R$ ${totalItemPrice}`);
+      const items: ScrapedItem[] = [];
+      $('#tabResult tr').each((_i, row) => {
+        const description = $(row).find('span.txtTit').text().trim();
+        const quantity = parseFloat($(row).find('span.Rqtde').text().trim().replace('Qtde.:', '').replace(',', '.'));
+        const unitPrice = parseFloat($(row).find('span.RvlUnit').text().trim().replace('Vl. Unit.:', '').replace(',', '.'));
+        const totalPrice = parseFloat($(row).find('span.valor').text().trim().replace(',', '.'));
+
+        if (description && !isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
+          items.push({ description, quantity, unitPrice, totalPrice });
         }
       });
       
       if (!establishmentName || isNaN(totalAmount) || items.length === 0) {
-        throw new Error('Não foi possível extrair os dados da nota fiscal. Verifique os seletores de CSS no código.');
+        throw new Error('Falha na extração de dados. Verifique os seletores de CSS no código.');
       }
       
-      // ... (Resto da sua lógica de categorização e retorno)
       return {
-        success: true,
-        data: {
-          description: `Compra em ${establishmentName}`,
-          amount: totalAmount,
-          date: new Date(), // A data real também precisa ser extraída
-          type: 'saida',
-          category: { id: 16, name: 'Compras', icon: 'cart-outline' },
-          items,
-        },
+        // ... seu objeto de retorno
       };
 
     } catch (error) {
@@ -68,4 +71,6 @@ export class ReceiptsService {
       }
     }
   }
+  
+  // ... resto do seu serviço
 }

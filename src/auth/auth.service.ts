@@ -1,21 +1,22 @@
-// src/auth/auth.service.ts
-
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt'; // <-- IMPORTE O JWT SERVICE
+import { JwtService } from '@nestjs/jwt';
+import { LoginDto } from './dto/login.dto'; // Crie este DTO para validação
 
 @Injectable()
 export class AuthService {
-  // Injetamos o PrismaService e o JwtService
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService, // <-- INJETE O JWT SERVICE
+    private jwtService: JwtService,
   ) {}
 
   async signUp(registerDto: RegisterDto) {
-    // ... seu método signUp existente ...
     const { name, email, password: plainPassword } = registerDto;
 
     const existingUser = await this.prisma.user.findUnique({
@@ -40,8 +41,8 @@ export class AuthService {
     return result;
   }
 
-  // NOVO MÉTODO:
-  async signIn(loginDto: any /* Crie um LoginDto se quiser */) {
+  // MÉTODO CORRIGIDO
+  async signIn(loginDto: LoginDto) {
     const { email, password: plainPassword } = loginDto;
 
     // 1. Encontra o usuário pelo e-mail
@@ -54,11 +55,14 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    // 3. Se as credenciais estiverem corretas, gera o token JWT
+    // 3. Prepara os dados para o token e para a resposta
     const payload = { sub: user.id, email: user.email };
-    
+    const { password, ...userData } = user; // Remove a senha do objeto do usuário
+
+    // 4. MUDANÇA PRINCIPAL: Retorna tanto o token quanto os dados do usuário
     return {
       access_token: this.jwtService.sign(payload),
+      user: userData, // <-- A INFORMAÇÃO QUE FALTAVA
     };
   }
 }
