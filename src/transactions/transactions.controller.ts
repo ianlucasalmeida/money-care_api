@@ -1,25 +1,25 @@
-import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Importe seu guarda de autenticação
-import { CreateTransactionDto } from './dto/create-transaction.dto'; // Crie este DTO
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateTransactionDto } from './dto/create-transaction.dto';
 
 @Controller('transactions')
-@UseGuards(JwtAuthGuard) // Protege TODAS as rotas neste controlador
+@UseGuards(JwtAuthGuard)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
-  // ESTE É O MÉTODO QUE ESTAVA FALTANDO
-  @Get()
-  findAll(@Req() req) {
-    // O JwtAuthGuard anexa o 'user' ao objeto de requisição (req)
-    // Assim, sabemos para qual usuário buscar as transações.
-    const userId = req.user.sub; // 'sub' é o ID do usuário no payload do token
-    return this.transactionsService.findAllByUser(userId);
-  }
-
   @Post()
-  create(@Body() createTransactionDto: CreateTransactionDto, @Req() req) {
-    const userId = req.user.sub;
+  create(
+    @Body() createTransactionDto: CreateTransactionDto,
+    @Req() req: { user?: { sub?: number | string } }
+  ) {
+    const userId =
+      req.user && typeof req.user.sub !== 'undefined'
+        ? Number(req.user.sub)
+        : undefined;
+    if (typeof userId !== 'number' || isNaN(userId)) {
+      throw new Error('Invalid user id');
+    }
     return this.transactionsService.create(createTransactionDto, userId);
   }
 }

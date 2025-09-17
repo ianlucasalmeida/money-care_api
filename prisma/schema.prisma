@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -31,23 +28,24 @@ model Category {
   transactions Transaction[]
 }
 
-// DEFINIÇÃO DO MODELO TRANSACTION QUE ESTAVA FALTANDO
 model Transaction {
-  id          Int      @id @default(autoincrement())
-  description String
-  amount      Float
-  type        String // "income" or "expense"
-  date        DateTime
-  notes       String?
-  user        User     @relation(fields: [userId], references: [id])
-  userId      Int
-  category    Category @relation(fields: [categoryId], references: [id])
-  categoryId  Int
-  wallet      Wallet?  @relation(fields: [walletId], references: [id])
-  walletId    Int?
+  id            Int      @id @default(autoincrement())
+  description   String
+  amount        Float
+  type          String // "income" or "expense"
+  date          DateTime
+  notes         String?
+  user          User     @relation(fields: [userId], references: [id])
+  userId        Int
+  category      Category @relation(fields: [categoryId], references: [id])
+  categoryId    Int
+  wallet        Wallet?  @relation(fields: [walletId], references: [id])
+  walletId      Int?
+  
+  // MUDANÇA: Adicionada a relação com os itens da transação
+  items         TransactionItem[]
 }
 
-// DEFINIÇÃO DO MODELO WALLET QUE ESTAVA FALTANDO
 model Wallet {
   id            Int           @id @default(autoincrement())
   name          String
@@ -56,4 +54,15 @@ model Wallet {
   user          User          @relation(fields: [userId], references: [id])
   userId        Int
   transactions  Transaction[]
+}
+
+// NOVO MODELO: Para guardar cada item de uma nota fiscal
+model TransactionItem {
+  id            Int      @id @default(autoincrement())
+  description   String
+  quantity      Float
+  unitPrice     Float
+  totalPrice    Float
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  transactionId Int
 }
